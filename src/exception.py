@@ -1,6 +1,6 @@
 ## Here we will write our own custom exception
 import sys ## Any exception that is basically getting controlled this sys library will automatically have that information
-import logging
+from src.logger import logging
 
 def error_message_detail(error,error_detail:sys): ## This error detail will be present inside my sys
     ## The return type of sys it provides u : exc_tb ---> Info regarding on which file the exception has occured, on which line no. the exception has occured all these info will be probably given and stored in this variable right now.
@@ -18,4 +18,5 @@ class CustomException(Exception):  ## Whenever i raise the custom exception its 
         self.error_message = error_message_detail(error_message,error_detail=error_detail) 
 
     def __str__(self):
-        return self.error_message ## Whenever i try to print it i will be getting all the error message over here            
+        return self.error_message ## Whenever i try to print it i will be getting all the error message over here 
+                  
