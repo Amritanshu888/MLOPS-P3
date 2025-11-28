@@ -7,6 +7,8 @@ import pandas as pd
 
 from sklearn.model_selection import train_test_split
 from dataclasses import dataclass
+from src.components.data_transformation import DataTransformation
+from src.components.data_transformation import DataTransformationConfig
 
 ## Reason of using Data Ingestion Config : Any input that i require i will give it through this DataIngestionConfig, we will also be creating an artifact folder as it will allow us to see our output
 @dataclass  ## If u use dataclass u will be able to directly define ur class variables no need to use init
@@ -27,7 +29,7 @@ class DataIngestion:
         ## If ur data is stored in some databases i will write the code to read it from the databases(here in this function)
         logging.info("Entered the Data Ingestion Method or Component")
         try:
-            df = pd.read_csv("notebook\data\stud.csv")
+            df = pd.read_csv("notebook/data/stud.csv")
             logging.info("Read the Dataset as DataFrame")
 
             os.makedirs(os.path.dirname(self.ingestion_config.train_data_path), exist_ok=True)
@@ -52,4 +54,7 @@ class DataIngestion:
         
 if __name__ == "__main__":
     obj = DataIngestion()
-    obj.initiate_data_ingestion()        
+    train_data,test_data = obj.initiate_data_ingestion()
+
+    data_transformation = DataTransformation()
+    data_transformation.initiate_data_transformation(train_data,test_data)     
