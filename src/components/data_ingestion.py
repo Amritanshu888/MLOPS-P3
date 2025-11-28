@@ -9,6 +9,8 @@ from sklearn.model_selection import train_test_split
 from dataclasses import dataclass
 from src.components.data_transformation import DataTransformation
 from src.components.data_transformation import DataTransformationConfig
+from src.components.model_trainer import ModelTrainerConfig
+from src.components.model_trainer import ModelTrainer
 
 ## Reason of using Data Ingestion Config : Any input that i require i will give it through this DataIngestionConfig, we will also be creating an artifact folder as it will allow us to see our output
 @dataclass  ## If u use dataclass u will be able to directly define ur class variables no need to use init
@@ -57,4 +59,8 @@ if __name__ == "__main__":
     train_data,test_data = obj.initiate_data_ingestion()
 
     data_transformation = DataTransformation()
-    data_transformation.initiate_data_transformation(train_data,test_data)     
+    train_arr,test_arr,_ = data_transformation.initiate_data_transformation(train_data,test_data)
+
+    model_trainer = ModelTrainer()
+    print(model_trainer.initiate_model_trainer(train_arr,test_arr))  ## Once i print this it is basically going to give me my r2_score
+
