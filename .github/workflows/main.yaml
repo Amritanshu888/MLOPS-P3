@@ -1,0 +1,103 @@
+name: workflow  ## Name of this particular workflow is workflow only
+
+on:
+    push:
+        branches:   ## Whenever push is happening on the main branch the README.md file is ignored, remaining all will be pushed into our deployment
+            - main
+        paths-ignore:
+            - 'README.md'
+
+permissions:
+    id-token: write
+    contents: read
+    
+jobs:   ## The 3 steps below are important w.r.t our deployment
+    integration:  ## This is nothing but continuous integration   ----> This is the first task w.r.t jobs
+        name: Continuous Integration
+        runs-on: ubuntu-latest  ## It is running on the ubuntu-latest machine
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v3   ## And here it will checkout the code
+              
+            - name: Lint code                 ## And here we have some echo, here we have jus printed some echo command
+              run: echo "Linting repository"  ## This echo command is used in linux machine
+              
+            - name: Run unit tests           ## U can run all the unit test cases to just see that everything is runnig properly or not
+              run: echo "Running unit tests" 
+    
+    build-and-push-ecr-image:            ## Second task w.r.t jobs   What is ECR image ?? --> When we create a docker by default docker when we take that docker image and push it into the docker then from that docker hub everybody will publicly be able to access this particular docker file. When working for companies this particular docekr image will be private and inorder to put private docker image where do we put in AWS ?? In AWS specifically we put that in the ECR repository.
+        name: Continuous Delivery        ## So AWS ECR --> It is for build, deploy and manages on AWS. It is a fully-managed docker container to store, manage and deploy images. So whatever image is basically created over here i will put it in the ECR repository and from there the deployment will be done to the EC2 instance --> This is how all the steps will go ahead.  So ECR is basically used to store private docker images, so those docker images will not be publicly available. AWS ECR --> Push container images to Amazon ECR without installing or scaling infrastructure, and pull images using any management tool. 
+        needs: integration               ## From this ECR we can do deployment in various instances like EC2 instance and all. AWS ECR has more functionality like : Access and distribute your images faster, reduce download times, and improve availability using scalable, durable architecture. 
+        runs-on: ubuntu-latest           ## Note that : ECR needs integration, unless and until integration part is not successfull we will not go ahead and push the entire docker image into the ECR repository and this is the part of continious delivery
+        steps:                           ## It will run on ubuntu-latest
+            - name: Checkout Code
+              uses: actions/checkout@v3  ## It will checkout the code on github
+              
+            - name: Install Utilities
+              run: |                     ## It will install all the necessary libraries required to update the packages
+                sudo apt-get update    
+                sudo apt-get install -y jq unzip
+                
+            - name: Configure AWS credentials      ## Then it will configure the AWS credentials
+              uses: aws-actions/configure-aws-credentials@v1
+              with:     ## These all are coming from the credentials of the specific IAM user
+                aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                aws-region: ${{ secrets.AWS_REGION }}
+
+            - name: Login to Amazon ECR  ## Then we will login into the Amazon ECR
+              id: login-ecr
+              uses: aws-actions/amazon-ecr-login@v1
+              
+            - name: Build, tag, and push image to Amazon ECR
+              id: build-image
+              env:
+                ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+                ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
+                IMAGE_TAG: latest
+              run: |
+                # Build a docker container and
+                # push it to ECR so that it can
+                # be deployed to ECS.
+                docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+                docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+                echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+    Continuous-Deployment:
+        needs: build-and-push-ecr-image  ## This ecr image will probably run as a self-hosted app runner
+        runs-on: self-hosted
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v3
+              
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v1
+              with:
+                aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                aws-region: ${{ secrets.AWS_REGION }}
+
+            - name: Login to Amazon ECR
+              id: login-ecr
+              uses: aws-actions/amazon-ecr-login@v1
+              
+            - name: Pull latest images
+              run: |
+                docker pull ${{secrets.AWS_ECR_LOGIN_URI}}/${{ secrets.ECR_REPOSITORY_NAME }}:latest
+
+            # - name: Stop and remove container if running
+            #  run: |
+            #  docker ps -q --filter "name=mltest" | grep -q . && docker stop mltest && docker rm -fv mltest
+
+            - name: Run Docker Image to server users
+              run: |
+                docker run -d -p 8080:8080 --ipc="host" --name=mltest -e 'AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}' -e 'AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}' -e 'AWS_REGION=${{ secrets.AWS_REGION }}'  ${{secrets.AWS_ECR_LOGIN_URI}}/${{ secrets.ECR_REPOSITORY_NAME }}:latest
+                
+            - name: Clean previous images and containers
+              run: |
+                docker system prune -f
+                
+## Note: All these codes are already present in the market place of github actions which will give u a option on how to deploy from ur github to ecr to aws
+## How do we get that ??
+## Go to ur github --> actions --> workflow and there u have new workflow and then this is where u go down and under deployment section u get a option of "Deploy to Amazon ECS"
+## It is about Deploy a container to an Amazon ECS service powered by AWS Fargate or Amazon EC2, there u click on configure button and u will get the entire code(yaml file).              
